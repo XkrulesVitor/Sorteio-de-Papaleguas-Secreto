@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sorteio Papaléguas Secreto</title>
+    <title>Sorteio Manual Amigo Secreto</title>
     <!-- Carrega Tailwind CSS para um design responsivo e moderno -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -47,7 +47,7 @@
     <!-- Estrutura Principal do App -->
     <div class="max-w-xl w-full bg-white p-6 md:p-8 rounded-xl container-card mt-8">
         <h1 class="3xl font-extrabold text-primary mb-2 text-center">
-            🎄 Sorteio Papaléguas Secreto 🎄
+            🎄 Sorteio Manual de Amigo Secreto
         </h1>
         <p id="user-id-display" class="text-xs text-gray-400 mb-6 text-center break-all">
             ID: Carregando...
@@ -57,7 +57,7 @@
         <div class="flex justify-between items-center mb-6 p-4 bg-primary/10 rounded-lg">
             <div>
                 <h2 class="text-lg font-semibold text-primary-dark">
-                    Total de Papaléguantes:
+                    Total de Participantes:
                 </h2>
                 <span id="participant-count" class="text-xl font-bold text-primary">0</span>
             </div>
@@ -71,7 +71,7 @@
 
         <!-- Formulário de Adição de Participante -->
         <div class="mb-8 p-4 border border-gray-200 rounded-lg bg-white">
-            <h3 class="text-xl font-bold text-gray-700 mb-3">Adicionar Papaléguano</h3>
+            <h3 class="text-xl font-bold text-gray-700 mb-3">Adicionar Participante</h3>
             <div class="space-y-3">
                 <input type="text" id="nameInput" placeholder="Nome da Pessoa"
                        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary transition duration-150">
@@ -85,7 +85,7 @@
         </div>
         
         <!-- Lista de Participantes -->
-        <h3 class="text-xl font-bold text-gray-700 mb-3">Lista de Papaléguanos</h3>
+        <h3 class="text-xl font-bold text-gray-700 mb-3">Lista de Pessoas</h3>
         <div id="participantList" class="space-y-2 mb-8 min-h-[50px]">
             <p id="loading-indicator" class="text-center text-gray-500">
                 Carregando lista...
@@ -190,8 +190,6 @@
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // 🚨 PASSO 1: CONFIGURAÇÃO REAL DO FIREBASE INJETADA 🚨
-        // Esta configuração é necessária para que o aplicativo se conecte ao SEU projeto
-        // no Google Firebase (amigo-oculto-10de8).
         
         let firebaseConfig = {
             apiKey: "AIzaSyBRsVabc4491BIC9e5e5Qu10GMhHArgc7g", 
@@ -307,11 +305,15 @@
         // --- Funções Firebase e Inicialização ---
 
         function getParticipantsCollection() {
-            if (!currentUserId || !appId) {
-                throw new Error("Usuário ou App ID não disponível.");
+            // ATENÇÃO: Mudança crucial para permitir que VÁRIOS USUÁRIOS vejam a mesma lista.
+            // O caminho agora é CONSTANTE para o App ID e NÃO depende do ID de Usuário (currentUserId).
+            // A segurança ainda é garantida pela regra do Firestore (request.auth != null).
+            if (!appId) {
+                throw new Error("App ID não disponível.");
             }
-            // CAMINHO PRIVADO: Usa o ID do usuário para isolamento dos dados
-            const path = `artifacts/${appId}/users/${currentUserId}/participants`;
+            
+            // CAMINHO COMPARTILHADO: usa o App ID como um identificador de grupo fixo.
+            const path = `secret_santa_group_data/${appId}/participants`;
             return collection(db, path);
         }
 
@@ -338,7 +340,7 @@
                 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
-                        currentUserId = user.uid;
+                        currentUserId = user.uid; // Mantém o ID do usuário para fins de autenticação
                         userIdDisplay.textContent = `ID do Usuário: ${currentUserId}`;
                         addParticipantBtn.disabled = false;
                         setupRealtimeListener(); 
@@ -361,7 +363,7 @@
         }
 
         function setupRealtimeListener() {
-            if (!db || !currentUserId) return;
+            if (!db) return; // Não é mais estritamente dependente de currentUserId para o PATH
 
             const q = query(getParticipantsCollection());
             
@@ -376,8 +378,8 @@
                 renderParticipants();
             }, (error) => {
                 console.error("Erro ao escutar participantes:", error);
-                // Mantenha a mensagem original para notificar problemas no caminho privado
-                openModal("Erro de Conexão", "Falha ao carregar a lista de participantes em tempo real. Por favor, recarregue a página.", `Detalhe: ${error.message}`, "OK");
+                // A mensagem de erro agora indica que o problema pode ser a regra ou a ativação do Anonymous Auth
+                openModal("Erro de Conexão", "Falha ao carregar a lista. Verifique se a Autenticação Anônima está ativada no Firebase e se as Regras de Segurança estão corretas.", `Detalhe: ${error.message}`, "OK");
             });
         }
 
@@ -397,7 +399,7 @@
                 return;
             }
 
-            if (!db || !currentUserId) {
+            if (!db) { // Removido !currentUserId do check
                 openModal("Erro", "Sistema não pronto. Tente novamente em um momento.", null, "OK");
                 return;
             }
@@ -426,7 +428,7 @@
         }
 
         window.deleteParticipant = async function(id) {
-            if (!db || !currentUserId) return;
+            if (!db) return; // Removido !currentUserId do check
             try {
                 const docRef = doc(getParticipantsCollection(), id);
                 await deleteDoc(docRef);
@@ -437,7 +439,7 @@
         }
         
         window.resetDraw = function() {
-            if (!db || !currentUserId) return;
+            if (!db) return; // Removido !currentUserId do check
             
             // Usando o novo modal de ação para a confirmação
             openModal(
