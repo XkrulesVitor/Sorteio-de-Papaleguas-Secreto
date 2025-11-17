@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sorteio Papaléguas Secreto</title>
+    <!-- Carrega Tailwind CSS para um design responsivo e moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#9333ea', // Roxo
+                        'secondary': '#facc15', // Amarelo
+                        'neutral-bg': '#f3f4f6',
+                        'success': '#10b981',
+                        'danger': '#ef4444',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+        }
+        .container-card {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+        }
+        .btn-primary {
+            transition: all 0.2s;
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 flex justify-center items-start">
+
+    <!-- Estrutura Principal do App -->
+    <div class="max-w-xl w-full bg-white p-6 md:p-8 rounded-xl container-card mt-8">
+        <h1 class="3xl font-extrabold text-primary mb-2 text-center">
+            🎄 Sorteio Papaléguas Secreto 🎄
+        </h1>
+        <p id="user-id-display" class="text-xs text-gray-400 mb-6 text-center break-all">
+            ID: Carregando...
+        </p>
+
+        <!-- Contadores de Participantes -->
+        <div class="flex justify-between items-center mb-6 p-4 bg-primary/10 rounded-lg">
+            <div>
+                <h2 class="text-lg font-semibold text-primary-dark">
+                    Total de Papaléguantes:
+                </h2>
+                <span id="participant-count" class="text-xl font-bold text-primary">0</span>
+            </div>
+            <div class="text-right">
+                <h2 class="text-lg font-semibold text-primary-dark">
+                    Ainda Faltam Sortear:
+                </h2>
+                <span id="pending-draw-count" class="text-xl font-bold text-danger">0</span>
+            </div>
+        </div>
+
+        <!-- Formulário de Adição de Participante -->
+        <div class="mb-8 p-4 border border-gray-200 rounded-lg bg-white">
+            <h3 class="text-xl font-bold text-gray-700 mb-3">Adicionar Papaléguano</h3>
+            <div class="space-y-3">
+                <input type="text" id="nameInput" placeholder="Nome da Pessoa"
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary transition duration-150">
+                <input type="text" id="wishlistLinkInput" placeholder="Lista de Desejos (Link ou Descrição)"
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary transition duration-150">
+                <button id="addParticipantBtn" onclick="addParticipant()"
+                        class="btn-primary w-full bg-secondary hover:bg-yellow-600 text-gray-800 font-bold py-3 rounded-lg shadow-md disabled:opacity-50" disabled>
+                    Adicionar Pessoa
+                </button>
+            </div>
+        </div>
+        
+        <!-- Lista de Participantes -->
+        <h3 class="text-xl font-bold text-gray-700 mb-3">Lista de Papaléguanos</h3>
+        <div id="participantList" class="space-y-2 mb-8 min-h-[50px]">
+            <p id="loading-indicator" class="text-center text-gray-500">
+                Carregando lista...
+            </p>
+        </div>
+
+        <!-- Botões de Ação do Sorteio -->
+        <div class="space-y-4">
+            <button id="startDrawBtn" onclick="openDrawerSelectionModal()"
+                    class="btn-primary w-full bg-primary hover:bg-purple-700 text-white font-extrabold py-4 rounded-xl shadow-lg disabled:bg-gray-400">
+                SORTEAR O PRÓXIMO NOME!
+            </button>
+            <button id="resetBtn" onclick="resetDraw()"
+                    class="btn-primary w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-xl shadow-md disabled:opacity-50">
+                Reiniciar TODO o Sorteio
+            </button>
+        </div>
+
+        <!-- 1. Modal de Mensagem (Geral, Erro, Confirmação) -->
+        <div id="messageModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white p-6 rounded-lg shadow-2xl max-w-sm w-full">
+                <h4 id="modalTitle" class="text-xl font-bold mb-3 text-primary"></h4>
+                <p id="modalMessage" class="mb-4 text-gray-700"></p>
+                <div id="modalDetails" class="bg-neutral-bg p-3 rounded-md text-sm whitespace-pre-wrap font-mono hidden"></div>
+                
+                <!-- Contêiner de Botões (Refatorado para suportar Ação e Fechar) -->
+                <div id="modalActions" class="flex flex-col space-y-2 mt-4">
+                    <button id="modalPrimaryBtn" onclick="closeModal()" class="w-full bg-primary hover:bg-purple-700 text-white font-semibold py-2 rounded-lg"></button>
+                    <button id="modalSecondaryBtn" class="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-lg hidden"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Modal de Seleção do Sorteador (Drawer) -->
+        <div id="drawerSelectionModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white p-6 rounded-lg shadow-2xl max-w-sm w-full">
+                <h4 class="text-2xl font-bold mb-4 text-primary text-center">Quem está sorteando agora?</h4>
+                <p class="mb-4 text-gray-700 text-center">Selecione seu nome para garantir que você não tire a si mesmo.</p>
+                
+                <select id="drawerSelect" class="w-full p-3 border border-gray-300 rounded-lg mb-4 text-gray-800">
+                    <option value="">-- Selecione o Sorteador --</option>
+                    <!-- Opções preenchidas via JS -->
+                </select>
+                
+                <div class="space-y-2">
+                    <button id="confirmDrawerBtn" onclick="drawNextName()"
+                            class="w-full bg-success hover:bg-green-700 text-white font-semibold py-3 rounded-lg disabled:opacity-50">
+                        Confirmar e Sortear!
+                    </button>
+                    <!-- Botão de "Voltar" / Cancelar o sorteio -->
+                    <button onclick="closeDrawerSelectionModal()"
+                            class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg">
+                        Voltar (Cancelar)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Modal de Resultado do Sorteio -->
+        <div id="resultModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white p-6 rounded-lg shadow-2xl max-w-sm w-full text-center">
+                <h4 class="text-3xl font-extrabold mb-3 text-success">Resultado Secreto! 🎉</h4>
+                <p id="resultGiverName" class="text-xl text-gray-700 mb-4 font-semibold"></p>
+                
+                <div class="p-4 bg-secondary/20 rounded-lg border border-secondary shadow-inner mb-6">
+                    <p class="text-lg text-gray-700">Seu Amigo Secreto é:</p>
+                    <p id="resultReceiverName" class="text-4xl font-extrabold text-secondary"></p>
+                </div>
+                
+                <p id="linkInfo" class="text-sm text-gray-600 mb-4"></p>
+
+                <!-- Removemos o botão de Copiar Mensagem Pronta -->
+                <button onclick="closeResultModal()" class="w-full bg-primary hover:bg-purple-700 text-white font-semibold py-3 rounded-lg">
+                    Próximo Sorteador
+                </button>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- Firebase e Lógica do App -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            query, 
+            addDoc, 
+            deleteDoc, 
+            doc, 
+            onSnapshot, 
+            serverTimestamp,
+            updateDoc,
+            writeBatch,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 🚨 PASSO 1: CONFIGURAÇÃO REAL DO FIREBASE INJETADA 🚨
+        // Esta configuração é necessária para que o aplicativo se conecte ao SEU projeto
+        // no Google Firebase (amigo-oculto-10de8).
+        
+        let firebaseConfig = {
+            apiKey: "AIzaSyBRsVabc4491BIC9e5e5Qu10GMhHArgc7g", 
+            authDomain: "amigo-oculto-10de8.firebaseapp.com",
+            projectId: "amigo-oculto-10de8", 
+            storageBucket: "amigo-oculto-10de8.firebasestorage.app",
+            messagingSenderId: "637969132470",
+            appId: "1:637969132470:web:7ceb9ec48552eb9abe6f17"
+        };
+        
+        // As variáveis de ambiente do Canvas ainda têm prioridade se existirem (para rodar no chat)
+        if (typeof __firebase_config !== 'undefined' && Object.keys(JSON.parse(__firebase_config)).length > 0) {
+            firebaseConfig = JSON.parse(__firebase_config);
+        }
+        // -----------------------------------------------------
+
+        // O resto das variáveis do ambiente
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        setLogLevel('debug'); // Logs de depuração do Firebase
+
+        let app, db, auth;
+        let currentUserId = null;
+        let participants = []; // Armazena a lista de participantes
+        let currentDrawerId = null; // ID da pessoa que está sorteando neste momento
+
+        // Elementos UI
+        const nameInput = document.getElementById('nameInput');
+        const wishlistLinkInput = document.getElementById('wishlistLinkInput'); // Campo atualizado
+        const addParticipantBtn = document.getElementById('addParticipantBtn');
+        const participantList = document.getElementById('participantList');
+        const startDrawBtn = document.getElementById('startDrawBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const countDisplay = document.getElementById('participant-count');
+        const pendingCountDisplay = document.getElementById('pending-draw-count');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        
+        // Modals
+        const messageModal = document.getElementById('messageModal');
+        const drawerSelectionModal = document.getElementById('drawerSelectionModal');
+        const drawerSelect = document.getElementById('drawerSelect');
+        const resultModal = document.getElementById('resultModal');
+        const resultGiverName = document.getElementById('resultGiverName');
+        const resultReceiverName = document.getElementById('resultReceiverName');
+        const modalPrimaryBtn = document.getElementById('modalPrimaryBtn');
+        const modalSecondaryBtn = document.getElementById('modalSecondaryBtn');
+        const linkInfo = document.getElementById('linkInfo');
+
+
+        // --- Funções de UI (Modal) ---
+
+        /**
+         * Abre um modal de mensagem. 
+         * @param {string} title Título do modal.
+         * @param {string} message Mensagem principal.
+         * @param {string|null} details Detalhes opcionais (para código/erros).
+         * @param {string} primaryBtnText Texto do botão principal (roxo).
+         * @param {function|null} secondaryActionCallback Callback para botão de ação (vermelho).
+         */
+        function openModal(title, message, details = null, primaryBtnText = "Fechar", secondaryActionCallback = null) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            const detailElement = document.getElementById('modalDetails');
+            
+            if (details) {
+                detailElement.textContent = details;
+                detailElement.classList.remove('hidden');
+            } else {
+                detailElement.classList.add('hidden');
+            }
+
+            // Configura os botões
+            if (secondaryActionCallback) {
+                // Modo de Ação/Confirmação (Ex: Reset)
+                modalPrimaryBtn.textContent = "Cancelar";
+                modalPrimaryBtn.onclick = closeModal;
+                
+                modalSecondaryBtn.textContent = primaryBtnText; // O texto de ação é o que era o primário
+                modalSecondaryBtn.onclick = secondaryActionCallback;
+                modalSecondaryBtn.classList.remove('hidden');
+            } else {
+                // Modo de Mensagem Simples
+                modalPrimaryBtn.textContent = primaryBtnText;
+                modalPrimaryBtn.onclick = closeModal;
+                modalSecondaryBtn.classList.add('hidden');
+            }
+            
+            messageModal.classList.remove('hidden');
+            messageModal.classList.add('flex');
+        }
+
+        window.closeModal = function() {
+            messageModal.classList.remove('flex');
+            messageModal.classList.add('hidden');
+        }
+        
+        window.closeDrawerSelectionModal = function() {
+            // Volta o botão de sorteio ao normal
+            startDrawBtn.disabled = false;
+            drawerSelect.value = ""; // Limpa a seleção
+            drawerSelectionModal.classList.remove('flex');
+            drawerSelectionModal.classList.add('hidden');
+        }
+
+        window.closeResultModal = function() {
+            currentDrawerId = null; 
+            resultModal.classList.remove('flex');
+            resultModal.classList.add('hidden');
+        }
+
+        // --- Funções Firebase e Inicialização ---
+
+        function getParticipantsCollection() {
+            if (!currentUserId || !appId) {
+                throw new Error("Usuário ou App ID não disponível.");
+            }
+            // CAMINHO PRIVADO: Usa o ID do usuário para isolamento dos dados
+            const path = `artifacts/${appId}/users/${currentUserId}/participants`;
+            return collection(db, path);
+        }
+
+        async function initializeFirebase() {
+            try {
+                // Se a chave ainda for a dummy (o que acontece em execução local), interrompe e avisa.
+                if (firebaseConfig.apiKey === "dummy-api-key") {
+                    console.error("ERRO: Credenciais do Firebase inválidas (dummy-api-key).");
+                    openModal(
+                        "Erro Fatal", 
+                        "Falha na inicialização do Firebase. Por favor, obtenha suas próprias credenciais no Console do Firebase e cole-as no código.",
+                        "Erro: API key inválida (auth/app-key-not-valid).", 
+                        "Entendi"
+                    );
+                    // Desabilita botões para impedir erros de conexão subsequentes
+                    addParticipantBtn.disabled = true;
+                    startDrawBtn.disabled = true;
+                    return; 
+                }
+                
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUserId = user.uid;
+                        userIdDisplay.textContent = `ID do Usuário: ${currentUserId}`;
+                        addParticipantBtn.disabled = false;
+                        setupRealtimeListener(); 
+                    } else {
+                        userIdDisplay.textContent = 'Autenticando...';
+                        signInAnonymously(auth);
+                    }
+                });
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                openModal("Erro Fatal", `Falha na inicialização do Firebase: ${error.message}`, error.message, "OK");
+            }
+        }
+
+        function setupRealtimeListener() {
+            if (!db || !currentUserId) return;
+
+            const q = query(getParticipantsCollection());
+            
+            onSnapshot(q, (snapshot) => {
+                participants = [];
+                snapshot.forEach((doc) => {
+                    participants.push({ id: doc.id, ...doc.data() });
+                });
+                
+                participants.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                
+                renderParticipants();
+            }, (error) => {
+                console.error("Erro ao escutar participantes:", error);
+                // Mantenha a mensagem original para notificar problemas no caminho privado
+                openModal("Erro de Conexão", "Falha ao carregar a lista de participantes em tempo real. Por favor, recarregue a página.", `Detalhe: ${error.message}`, "OK");
+            });
+        }
+
+
+        // --- Lógica de CRUD e Interface ---
+
+        window.addParticipant = async function() {
+            const name = nameInput.value.trim();
+            let wishlistLink = wishlistLinkInput.value.trim(); // Campo atualizado
+
+            if (name === "") {
+                openModal("Atenção", "O nome do participante é obrigatório.", null, "OK");
+                return;
+            }
+            if (participants.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+                openModal("Atenção", `O nome "${name}" já está na lista.`, null, "OK");
+                return;
+            }
+
+            if (!db || !currentUserId) {
+                openModal("Erro", "Sistema não pronto. Tente novamente em um momento.", null, "OK");
+                return;
+            }
+
+            
+            addParticipantBtn.disabled = true;
+            addParticipantBtn.textContent = 'Salvando...';
+
+            try {
+                await addDoc(getParticipantsCollection(), {
+                    name: name,
+                    wishlistLink: wishlistLink, // Salvando o texto/link bruto
+                    drawnName: null, 
+                    createdAt: serverTimestamp()
+                });
+
+                nameInput.value = "";
+                wishlistLinkInput.value = "";
+            } catch (e) {
+                console.error("Erro ao adicionar documento: ", e);
+                openModal("Erro", `Erro ao adicionar participante: ${e.message}`, e.message, "OK");
+            } finally {
+                addParticipantBtn.disabled = false;
+                addParticipantBtn.textContent = 'Adicionar Pessoa';
+            }
+        }
+
+        window.deleteParticipant = async function(id) {
+            if (!db || !currentUserId) return;
+            try {
+                const docRef = doc(getParticipantsCollection(), id);
+                await deleteDoc(docRef);
+            } catch (e) {
+                console.error("Erro ao deletar documento: ", e);
+                openModal("Erro", `Erro ao remover participante: ${e.message}`, e.message, "OK");
+            }
+        }
+        
+        window.resetDraw = function() {
+            if (!db || !currentUserId) return;
+            
+            // Usando o novo modal de ação para a confirmação
+            openModal(
+                "Confirmação de Reinício", 
+                "Esta ação apagará **TODOS** os resultados do sorteio (quem tirou quem) e não pode ser desfeita. Deseja continuar?",
+                null, 
+                "Sim, Reiniciar Sorteio Agora", // Texto do botão de Ação (Vermelho)
+                window.confirmReset // Callback para a ação
+            );
+        }
+        
+        // Função chamada pelo botão vermelho do modal de confirmação
+        window.confirmReset = async function() {
+            closeModal(); // Fecha o modal de confirmação
+            
+            resetBtn.disabled = true;
+            resetBtn.textContent = 'Reiniciando...';
+            
+            try {
+                const batch = writeBatch(db);
+                
+                participants.forEach(p => {
+                    const docRef = doc(getParticipantsCollection(), p.id);
+                    batch.update(docRef, { drawnName: null });
+                });
+                
+                await batch.commit();
+                
+                openModal("Sorteio Reiniciado", "Todos os resultados foram apagados e o pote foi cheio novamente!", null, "Ótimo!");
+
+            } catch (e) {
+                console.error("Erro ao reiniciar sorteio: ", e);
+                openModal("Erro ao Reiniciar", `Falha ao apagar resultados: ${e.message}`, e.message, "OK");
+            } finally {
+                resetBtn.disabled = false;
+                resetBtn.textContent = 'Reiniciar TODO o Sorteio';
+            }
+        }
+
+
+        // --- Lógica de Sorteio Manual ---
+
+        window.openDrawerSelectionModal = function() {
+            const pendingGivers = participants.filter(p => p.drawnName === null);
+            
+            if (pendingGivers.length === 0) {
+                openModal("Sorteio Finalizado", "Todos os participantes já sortearam seus nomes! Use 'Reiniciar Sorteio' para começar de novo.", null, "OK");
+                startDrawBtn.disabled = true;
+                return;
+            }
+            if (participants.length < 2) {
+                openModal("Atenção", "Você precisa de pelo menos 2 participantes para sortear.", null, "OK");
+                return;
+            }
+
+            // Preenche o dropdown com quem AINDA não sorteou
+            drawerSelect.innerHTML = '<option value="">-- Selecione o Sorteador --</option>';
+            pendingGivers.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p.id;
+                option.textContent = p.name;
+                drawerSelect.appendChild(option);
+            });
+            
+            startDrawBtn.disabled = true;
+            drawerSelectionModal.classList.remove('hidden');
+            drawerSelectionModal.classList.add('flex');
+        }
+
+
+        window.drawNextName = async function() {
+            currentDrawerId = drawerSelect.value;
+            
+            if (!currentDrawerId) {
+                openModal("Atenção", "Por favor, selecione quem está sorteando antes de continuar.", null, "OK");
+                return;
+            }
+            
+            // Fecha o modal de seleção antes de processar o sorteio
+            drawerSelectionModal.classList.remove('flex');
+            drawerSelectionModal.classList.add('hidden');
+            
+            const drawer = participants.find(p => p.id === currentDrawerId);
+            if (!drawer) {
+                openModal("Erro", "Sorteador não encontrado na lista.", null, "OK");
+                return;
+            }
+            
+            startDrawBtn.textContent = 'Sorteando... ⏳';
+            
+            // Nomes que JÁ FORAM sorteados (nomes dos alvos)
+            const assignedReceivers = participants.filter(p => p.drawnName !== null).map(p => p.drawnName);
+            
+            // 1. Constrói a lista de nomes disponíveis para serem sorteados.
+            const availableReceivers = participants
+                // Pega todos os nomes
+                .map(p => p.name)
+                // Regra 1: Exclui o próprio sorteador (para evitar que tire a si mesmo)
+                .filter(name => name !== drawer.name) 
+                // Regra 2: Exclui quem JÁ FOI SORTEADO por outro (para evitar duplicação)
+                .filter(name => !assignedReceivers.includes(name));
+            
+            if (availableReceivers.length === 0) {
+                openModal("Erro de Regra", "Não há nomes disponíveis para você sortear! A lista está muito pequena. Reinicie o sorteio se for o caso.", null, "OK");
+                startDrawBtn.textContent = 'SORTEAR O PRÓXIMO NOME!';
+                return;
+            }
+
+            // 2. Realiza o sorteio de forma aleatória e justa.
+            // A função Math.random() é a pseudo-aleatória padrão e garante a mesma chance
+            // para todos os nomes disponíveis neste array.
+            const randomIndex = Math.floor(Math.random() * availableReceivers.length);
+            const drawnReceiverName = availableReceivers[randomIndex];
+            
+            // Encontra o objeto do alvo para pegar o link da lista de desejos
+            const receiver = participants.find(p => p.name === drawnReceiverName);
+            const receiverLink = receiver ? receiver.wishlistLink : null;
+
+            try {
+                // 3. Salva o resultado no Firestore
+                const drawerRef = doc(getParticipantsCollection(), currentDrawerId);
+                await updateDoc(drawerRef, {
+                    drawnName: drawnReceiverName,
+                });
+
+                // 4. Exibe o resultado
+                startDrawBtn.textContent = 'SORTEAR O PRÓXIMO NOME!';
+                showDrawResult(drawer.name, drawnReceiverName, receiverLink);
+
+            } catch (error) {
+                console.error("Erro ao salvar o sorteio:", error);
+                openModal("Erro no Sorteio", `Ocorreu um erro ao salvar o resultado: ${error.message}`, error.message, "OK");
+            }
+        }
+        
+        function showDrawResult(giverName, receiverName, receiverLink) {
+            resultGiverName.textContent = `Olá, ${giverName}!`; // Mostra quem está sorteando
+            resultReceiverName.textContent = receiverName;
+            
+            // Exibe o conteúdo da Lista de Desejos do ALVO
+            if (receiverLink && receiverLink.length > 0) {
+                const isLink = receiverLink.toLowerCase().startsWith('http');
+                const linkContent = isLink 
+                    ? `<a href="${receiverLink}" target="_blank" class="text-primary hover:text-purple-700 underline font-semibold break-all">${receiverLink}</a>`
+                    : `<span class="font-semibold break-all">${receiverLink}</span>`;
+                
+                linkInfo.innerHTML = `Lista de Desejos: ${linkContent}`;
+            } else {
+                linkInfo.textContent = "Lista de Desejos: Não Informada.";
+            }
+            
+            resultModal.classList.remove('hidden');
+            resultModal.classList.add('flex');
+        }
+
+        // Removida a função window.copyAndCloseResult
+
+        // --- Renderização da Lista e Controles ---
+
+        function renderParticipants() {
+            participantList.innerHTML = "";
+            loadingIndicator.classList.add('hidden');
+            
+            const giversCount = participants.length;
+            const pendingDraws = participants.filter(p => p.drawnName === null).length;
+
+            countDisplay.textContent = giversCount;
+            pendingCountDisplay.textContent = pendingDraws;
+            
+            // Habilita/desabilita o botão de sorteio manual
+            startDrawBtn.disabled = pendingDraws === 0 || giversCount < 2;
+            startDrawBtn.textContent = pendingDraws === 0 ? 'SORTEIO CONCLUÍDO' : 'SORTEAR O PRÓXIMO NOME!';
+
+            resetBtn.disabled = giversCount === 0;
+
+            if (giversCount === 0) {
+                participantList.innerHTML = '<p class="text-center text-gray-500 p-4">Nenhum participante. Comece adicionando!</p>';
+                return;
+            }
+
+            participants.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between p-3 bg-white border-b border-gray-100 last:border-b-0 rounded-lg shadow-sm';
+                
+                let statusInfo = '';
+                
+                if (p.drawnName) {
+                    statusInfo = `<div class="bg-success/10 text-success border border-success/30 px-2 py-1 rounded-md text-sm font-semibold">
+                        Já Sorteou!
+                    </div>`;
+
+                } else {
+                    statusInfo = `<div class="bg-danger/10 text-danger border border-danger/30 px-2 py-1 rounded-md text-sm font-semibold">
+                        Aguardando sorteio...
+                    </div>`;
+                }
+                
+                // Exibe o conteúdo da Lista de Desejos (link ou texto)
+                let linkText = '';
+                if (p.wishlistLink && p.wishlistLink.length > 0) {
+                    const isLink = p.wishlistLink.toLowerCase().startsWith('http');
+                    const linkContent = isLink 
+                        ? `<a href="${p.wishlistLink}" target="_blank" class="text-primary hover:text-purple-700 underline">${p.wishlistLink}</a>`
+                        : `${p.wishlistLink}`; // Apenas texto
+                        
+                    linkText = `
+                        <span class="text-xs text-gray-600 break-all mt-1">
+                            Lista de Desejos: 
+                            ${linkContent}
+                        </span>
+                    `;
+                } else {
+                     // Caso contrário, mostra que não foi informado
+                     linkText = `<span class="text-xs text-gray-500 mt-1">Lista de Desejos: Não informado.</span>`;
+                }
+
+
+                item.innerHTML = `
+                    <div class="flex flex-col flex-grow">
+                        <span class="text-lg font-bold text-gray-800">${p.name}</span>
+                        ${linkText}
+                    </div>
+                    <div class="flex items-center">
+                        ${statusInfo}
+                        <button onclick="deleteParticipant('${p.id}')" 
+                                class="flex-shrink-0 ml-3 text-gray-400 hover:text-red-600 transition duration-150 p-1 rounded-full hover:bg-red-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                `;
+                participantList.appendChild(item);
+            });
+        }
+
+        // Inicia o app no carregamento da janela
+        window.onload = initializeFirebase;
+
+    </script>
+</body>
+</html>
